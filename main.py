@@ -5,10 +5,16 @@ import numpy as np
 from flask import Flask
 from PIL import Image, ImageChops, ImageStat, ExifTags
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
+)
 
 # --------------------------
-# Flask health-check server
+# Flask for Render
 # --------------------------
 
 app_server = Flask(__name__)
@@ -17,39 +23,34 @@ app_server = Flask(__name__)
 def home():
     return "Inspector ADF is running!", 200
 
-
 def run_flask():
     port = int(os.environ.get("PORT", 5000))
     app_server.run(host="0.0.0.0", port=port)
 
 
 # --------------------------
-# Telegram Bot
+# Forensic Functions
 # --------------------------
-
-TOKEN = os.getenv("BOT_TOKEN")
 
 def extract_exif(img):
     try:
         exif_data = img._getexif()
         if not exif_data:
-            return "❌ EXIF отсутствует — часто признак AI."
-
-        readable = {}
-        for tag, value in exif_data.items():
-            decoded = ExifTags.TAGS.get(tag, tag)
-            readable[decoded] = value
+            return "❌ EXIF отсутствует — частый признак AI."
+        readable = {
+            ExifTags.TAGS.get(tag, tag): value
+            for tag, value in exif_data.items()
+        }
 
         hints = []
         if "Software" in readable:
             sw = str(readable["Software"]).lower()
             if any(x in sw for x in ["midjourney", "diffusion", "ai", "stable", "generated"]):
-                hints.append("⚠️ ПО указывает на генерацию нейросетью.")
-
+                hints.append("⚠️ ПО указывает на нейросеть.")
         if not hints:
             hints.append("✔ EXIF выглядит естественно.")
-
         return "\n".join(hints) + "\n\n" + str(readable)
+
     except:
         return "❌ Ошибка чтения EXIF — файл модифицирован."
 
@@ -70,11 +71,14 @@ def noise_level(img):
     return float(np.std(arr))
 
 
+# --------------------------
+# Bot Handlers
+# --------------------------
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Привет! Я Inspector ADF.\n"
-        "Отправь фото — выполню forensic-анализ: EXIF, ELA, шумы.\n"
-        "Определю вероятность AI-подделки."
+        "Отправь фото — выполню forensic-анализ."
     )
 
 
@@ -115,20 +119,20 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(result, parse_mode="Markdown")
 
 
+# --------------------------
+# Run Both Services
+# --------------------------
+
 def run_bot():
-    application = ApplicationBuilder().token(TOKEN).build()
+    token = os.getenv("BOT_TOKEN")
+    application = Application.builder().token(token).build()
+
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+
     application.run_polling()
 
 
-# --------------------------
-# RUN BOTH SYSTEMS
-# --------------------------
-
 if __name__ == "__main__":
-    # Flask server (health check)
     threading.Thread(target=run_flask).start()
-
-    # Telegram bot polling
     run_bot()
