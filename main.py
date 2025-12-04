@@ -27,8 +27,7 @@ def run_flask():
 # Telegram Bot
 # --------------------------
 
-TOKEN = os.getenv("8493347343:AAGWKhKzFduPfQjmZLwoJ3giMvuc90oPaBc
-")
+TOKEN = os.getenv("ВАШ_ТОКЕН")
 
 def extract_exif(img):
     try:
